@@ -31,7 +31,7 @@ class Node:
         return
 
 #Path Planner 
-class PathPlanner:
+class PathPlanner: 
     #A path planner capable of perfomring RRT and RRT*
     def __init__(self, map_filename, map_setings_filename, goal_point, stopping_dist):
         #Get map information
