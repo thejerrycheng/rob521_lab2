@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 #Standard Libraries
+from importlib.resources import path
+from pathlib import Path
+from xxlimited import foo
 import numpy as np
 import yaml
 import pygame
 import time
 import pygame_utils
 import matplotlib.image as mpimg
-from skimage.draw import disk
+from skimage.draw import circle_perimeter
 from scipy.linalg import block_diag
+from math import sin, cos, atan2
 
 #Map Handling Functions
 def load_map(filename):
@@ -81,6 +85,7 @@ class PathPlanner:
         return np.zeros((2, 1))
     
     def check_if_duplicate(self, point):
+        
         #Check if point is a duplicate of an already existing node
         print("TO DO: Check that nodes are not duplicates")
         return False
@@ -104,26 +109,88 @@ class PathPlanner:
     def robot_controller(self, node_i, point_s):
         #This controller determines the velocities that will nominally move the robot from node i to node s
         #Max velocities should be enforced
+
         print("TO DO: Implement a control scheme to drive you towards the sampled point")
         return 0, 0
     
-    def trajectory_rollout(self, vel, rot_vel):
+    def trajectory_rollout(self, vel, rot_vel, theta_i):
         # Given your chosen velocities determine the trajectory of the robot for your given timestep
         # The returned trajectory should be a series of points to check for collisions
-        print("TO DO: Implement a way to rollout the controls chosen")
-        return np.zeros((3, self.num_substeps))
-    
+
+        trajectory = np.array([[],[],[]])                          # initialize array
+        t = np.array(range(self.num_substeps))/self.num_substeps
+        print(t)
+
+        if rot_vel == 0:
+            x_I = [np.around((vel*t*np.cos(theta_i)),2)]
+            y_I = [np.around((vel*t*np.sin(theta_i)),2)]
+            theta_I = [np.zeros(self.num_substeps)]
+        else:
+            x_I = [np.around((vel/rot_vel)*(np.sin(rot_vel*t + theta_i)-np.sin(theta_i)), 2)]       # position in {V} frame
+            y_I = [np.around((vel/rot_vel)*(np.cos(theta_i)-np.cos(rot_vel*t + theta_i)),2)]
+            print("\nx_components: vel/rot_vel", vel/rot_vel, "np.sin(rot_vel*t)", np.sin(rot_vel*t), "-np.sin(theta):", -np.sin(theta_i))
+            print("y_components: vel/rot_vel", vel/rot_vel, "np.cos(theta)", np.cos(theta_i), "-np.sin(theta):", -np.cos(rot_vel*t))
+
+            theta_I = [np.around(rot_vel*t,2)]                          # orientation in {V}
+
+        trajectory = np.vstack((x_I, y_I, theta_I))
+        return trajectory
+        
+
+        #the trajectory can be approximated using the unicycle robot velocity model 
+        # trajectory = np.zeros((3, self.num_substeps))
+        # t = np.linspace(0, timestep, num_substeps+1) 
+
+        # print("TO DO: Implement a way to rollout the controls chosen")
+        # return np.zeros((3, self.num_substeps))
+
+# Task 1 A: Collision Detection 
     def point_to_cell(self, point):
         #Convert a series of [x,y] points in the map to the indices for the corresponding cell in the occupancy map
         #point is a 2 by N matrix of points of interest
-        print("TO DO: Implement a method to get the map cell the robot is currently occupying")
-        return 0
 
+        x_B = point[0] - self.map_settings_dict["origin"][0] # both in meters 
+        y_B = point[1] - self.map_settings_dict["origin"][1] 
+        print('the x coordinate for B is: ', x_B)
+        print('the y coordinate for B is: ', y_B)
+
+        # need to convert to index by dividing by resolution (*1/0.05 = *20)
+        height = self.map_shape[1]*self.map_settings_dict["resolution"]          # map height in meters
+        width = self.map_shape[0]*self.map_settings_dict['resolution']
+        print('the map size is: ', height, 'meters in height', width, 'meters in width')
+        print('the grid size is', self.map_shape[1], 'number of grids in height', self.map_shape[0], 'number of grids in width')
+
+        print('the resolution of the map is: ', self.map_settings_dict['resolution'])
+        print('the maps shape is: ', self.map_shape)
+
+        x_idx = (x_B/self.map_settings_dict["resolution"]).astype(int)
+        y_idx = ((height-y_B)/self.map_settings_dict["resolution"]).astype(int)  # y_B is wrt bottom left, while y_idx is wrt top left
+        
+        print('x index is: ', x_idx)
+        print('y index is: ', y_idx)
+        
+        point_idx = np.vstack((x_idx,y_idx))
+
+        print("Implement a method to get the map cell the robot is currently occupying")
+        return point_idx
+
+# Task 1 B: Collision Detection 
     def points_to_robot_circle(self, points):
         #Convert a series of [x,y] points to robot map footprints for collision detection
         #Hint: The disk function is included to help you with this function
-        print("TO DO: Implement a method to get the pixel locations of the robot path")
-        return [], []
+
+        # start by converting into occupancy grid: 
+        points_idx = self.point_to_cell(points) 
+        pixel_radius = self.robot_radius/self.map_settings_dict["resolution"]  # robot radius in pixels
+        footprint = [[],[]]
+
+        for i in range(len(points_idx[0])):
+            # rr, cc indicate the pixel coordinate of the points, can be directly used into an array like: img[rr,cc]
+            rr, cc = circle_perimeter(points_idx[0, i], points_idx[1, i], int(pixel_radius))
+            footprint = np.hstack((footprint,np.vstack((rr,cc))))
+
+        print("Implement a method to get the pixel locations of the robot path")
+        return footprint
     #Note: If you have correctly completed all previous functions, then you should be able to create a working RRT function
 
     #RRT* specific functions
@@ -219,8 +286,45 @@ def main():
     nodes = path_planner.rrt_star_planning()
     node_path_metric = np.hstack(path_planner.recover_path())
 
+
+    #Task 1A test: point_to_cell function 
+    print("Task 1A test: point_to_cell function")
+    point = np.array([[10, 5, -10, 0, 10, -5],
+                      [10, 5, -10, 0, -5, 10]])
+    print(path_planner.point_to_cell(point))
+    
+    for i in point.T:
+        # print(point.T)
+        path_planner.window.add_point(i, radius=10, color=(100, 0, 255))
+
+    #Task 1B test: point_to_robot_circle function 
+    print("/n Task 1B test: points_to_robot_circle function")
+    footprint = path_planner.points_to_robot_circle(point)
+    
+    print(footprint)
+
+    for i in footprint.T:
+        path_planner.window.add_point(i, radius=10, color=(100, 0, 255))
+
+
+    # Task 2A test: trajectory_rollout function
+    print("\nTask 2A test: trajectory_rollout function")
+    traj_rollout = path_planner.trajectory_rollout(8,0.4)
+    print("trajectory_rollout:", traj_rollout)
+    for i, val in enumerate(traj_rollout.T):
+        if i%2==0:
+            continue
+        path_planner.window.add_se2_pose(val, length=8, color=(0,0,255))
+
+
     #Leftover test functions
     np.save("shortest_path.npy", node_path_metric)
+
+    # open the file for visilization to check the correntness of the map: 
+    while 1:
+        data = np.load('shortest_path.npy')
+
+
 
 
 if __name__ == '__main__':
