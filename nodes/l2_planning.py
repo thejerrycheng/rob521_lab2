@@ -13,6 +13,13 @@ from skimage.draw import circle_perimeter
 from scipy.linalg import block_diag
 from math import sin, cos, atan2
 
+# ros related packages and messages: 
+import rospy
+
+# ros related messages: 
+from std_msgs.msg import String
+
+
 #Map Handling Functions
 def load_map(filename):
     im = mpimg.imread("../maps/" + filename)
@@ -42,6 +49,14 @@ class PathPlanner:
         self.occupancy_map = load_map(map_filename)
         self.map_shape = self.occupancy_map.shape
         self.map_settings_dict = load_map_yaml(map_setings_filename)
+
+        # subscribers and publishers
+        self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        self.global_path_pub = rospy.Publisher('~global_path', Path, queue_size=1, latch=True)
+        self.local_path_pub = rospy.Publisher('~local_path', Path, queue_size=1)
+        self.collision_marker_pub = rospy.Publisher('~collision_marker', Marker, queue_size=1)
+        self.odom = rospy.Subscriber()
+
 
         #Get the metric bounds of the map
         self.bounds = np.zeros([2,2]) #m
