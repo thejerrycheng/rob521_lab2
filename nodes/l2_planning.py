@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#Standard Libraries
 from importlib.resources import path
 from pathlib import Path
 from xxlimited import foo
@@ -51,11 +50,11 @@ class PathPlanner:
         self.map_settings_dict = load_map_yaml(map_setings_filename)
 
         # subscribers and publishers
-        self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
-        self.global_path_pub = rospy.Publisher('~global_path', Path, queue_size=1, latch=True)
-        self.local_path_pub = rospy.Publisher('~local_path', Path, queue_size=1)
-        self.collision_marker_pub = rospy.Publisher('~collision_marker', Marker, queue_size=1)
-        self.odom = rospy.Subscriber()
+        # self.cmd_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+        # self.global_path_pub = rospy.Publisher('~global_path', Path, queue_size=1, latch=True)
+        # self.local_path_pub = rospy.Publisher('~local_path', Path, queue_size=1)
+        # self.collision_marker_pub = rospy.Publisher('~collision_marker', Marker, queue_size=1)
+        # self.odom = rospy.Subscriber()
 
 
         #Get the metric bounds of the map
@@ -117,10 +116,24 @@ class PathPlanner:
         #point_s is the sampled point vector [x; y]
         print("TO DO: Implment a method to simulate a trajectory given a sampled point")
         vel, rot_vel = self.robot_controller(node_i, point_s)
+        print(node_i)
+        # theta_i = 0
+        vel = 1
+        rot_vel = 0.2
+        robot_traj = self.trajectory_rollout(vel, rot_vel, node_i) 
+        print('trajectory rollout is:', robot_traj)
+        # print(node_i)
+        print(self.num_substeps)
+        # new_robot_traj = np.array([[node_i[j] for i in range(self.num_substeps)] for j in range(3)])
+        # print(new_robot_traj)
+        new_robot_traj = [[],[],[]]
+        new_robot_traj[0] = robot_traj[0] + node_i[0]
+        new_robot_traj[1] = robot_traj[1] + node_i[1]
+        new_robot_traj[2] = robot_traj[2] + node_i[2]
+        # print('i am here:::: ', new_robot_traj)
 
-        robot_traj = self.trajectory_rollout(vel, rot_vel)
-        return robot_traj
-    
+        return np.array(new_robot_traj)
+
     def robot_controller(self, node_i, point_s):
         #This controller determines the velocities that will nominally move the robot from node i to node s
         #Max velocities should be enforced
@@ -128,13 +141,17 @@ class PathPlanner:
         print("TO DO: Implement a control scheme to drive you towards the sampled point")
         return 0, 0
     
-    def trajectory_rollout(self, vel, rot_vel, theta_i):
+    def trajectory_rollout(self, vel, rot_vel, node_i):
         # Given your chosen velocities determine the trajectory of the robot for your given timestep
         # The returned trajectory should be a series of points to check for collisions
 
         trajectory = np.array([[],[],[]])                          # initialize array
         t = np.array(range(self.num_substeps))/self.num_substeps
         print(t)
+
+        x_i = node_i[0]
+        y_i = node_i[1]
+        theta_i = node_i[2]
 
         if rot_vel == 0:
             x_I = [np.around((vel*t*np.cos(theta_i)),2)]
@@ -244,6 +261,7 @@ class PathPlanner:
             closest_node_id = self.closest_node(point)
 
             #Simulate driving the robot towards the closest point
+            #This is based on the world reference frame: 
             trajectory_o = self.simulate_trajectory(self.nodes[closest_node_id].point, point)
 
             #Check for collisions
@@ -251,6 +269,7 @@ class PathPlanner:
             
             #Check if goal has been reached
             print("TO DO: Check if at goal point.")
+
         return self.nodes
     
     def rrt_star_planning(self):
@@ -302,34 +321,55 @@ def main():
     node_path_metric = np.hstack(path_planner.recover_path())
 
 
-    #Task 1A test: point_to_cell function 
-    print("Task 1A test: point_to_cell function")
-    point = np.array([[10, 5, -10, 0, 10, -5],
-                      [10, 5, -10, 0, -5, 10]])
-    print(path_planner.point_to_cell(point))
+    # #Task 1A test: point_to_cell function 
+    # print("Task 1A test: point_to_cell function")
+    # point = np.array([[10, 5, -10, 0, 10, -5],
+    #                   [10, 5, -10, 0, -5, 10]])
+    # print(path_planner.point_to_cell(point))
     
-    for i in point.T:
-        # print(point.T)
-        path_planner.window.add_point(i, radius=10, color=(100, 0, 255))
+    # for i in point.T:
+    #     # print(point.T)
+    #     path_planner.window.add_point(i, radius=10, color=(100, 0, 255))
 
-    #Task 1B test: point_to_robot_circle function 
-    print("/n Task 1B test: points_to_robot_circle function")
-    footprint = path_planner.points_to_robot_circle(point)
+    # #Task 1B test: point_to_robot_circle function 
+    # print("/n Task 1B test: points_to_robot_circle function")
+    # footprint = path_planner.points_to_robot_circle(point)
     
-    print(footprint)
+    # print(footprint)
 
-    for i in footprint.T:
-        path_planner.window.add_point(i, radius=10, color=(100, 0, 255))
+    # for i in footprint.T:
+    #     path_planner.window.add_point(i, radius=10, color=(100, 0, 255))
 
 
     # Task 2A test: trajectory_rollout function
     print("\nTask 2A test: trajectory_rollout function")
-    traj_rollout = path_planner.trajectory_rollout(8,0.4)
-    print("trajectory_rollout:", traj_rollout)
-    for i, val in enumerate(traj_rollout.T):
+    traj_rollout1 = path_planner.trajectory_rollout(8,0.4,[1,1,1])
+    print("\ntrajectory_rollout in the first test: \n", traj_rollout1)
+    for i, val in enumerate(traj_rollout1.T):
         if i%2==0:
             continue
         path_planner.window.add_se2_pose(val, length=8, color=(0,0,255))
+
+    
+    traj_rollout2 = path_planner.trajectory_rollout(-8,2,[1,1,1])
+    print("trajectory_rollout in the second test: \n", traj_rollout2)
+
+    for i, val in enumerate(traj_rollout2.T):
+        if i%2==0:
+            continue
+        path_planner.window.add_se2_pose(val, length=8, color=(0,0,255))
+
+
+
+    # Task 2C test:
+    output = path_planner.simulate_trajectory([1,2,3], [14,2])
+    print('the trajkectory rollout is: ', output)
+    print(type(output))
+    # path_planner.window.add_se2_pose(val, length=8, color=(0,0,255))
+    for i, val in enumerate(output.T):
+        if i%2==0:
+            continue
+        path_planner.window.add_se2_pose(val, length=8, color=(0,100,255))
 
 
     #Leftover test functions
@@ -338,9 +378,6 @@ def main():
     # open the file for visilization to check the correntness of the map: 
     while 1:
         data = np.load('shortest_path.npy')
-
-
-
 
 if __name__ == '__main__':
     main()
